@@ -51,9 +51,9 @@ app.post('/api/admin/simulate-gift', (req, res) => {
 });
 
 app.post('/api/connect', (req, res) => {
-  const { username, sessionId } = req.body;
+  const { username, sessionId, ttTargetIdc } = req.body;
   if (!username) return res.status(400).json({ error: 'Username de TikTok requerido' });
-  game.connectTikTok(username, sessionId);
+  game.connectTikTok(username, sessionId, ttTargetIdc);
   res.json({ success: true, message: `Conectando a @${username}...` });
 });
 
@@ -80,7 +80,7 @@ io.on('connection', (socket) => {
   socket.on('admin_chaos', () => game.triggerChaosEvent());
   socket.on('admin_add_player', ({ username }) => game.addPlayer(username));
   socket.on('admin_simulate_gift', ({ username, giftName, diamonds }) => game.addGift(username, giftName, diamonds));
-  socket.on('connect_tiktok', ({ username, sessionId }) => game.connectTikTok(username, sessionId));
+  socket.on('connect_tiktok', ({ username, sessionId, ttTargetIdc }) => game.connectTikTok(username, sessionId, ttTargetIdc));
   socket.on('disconnect_tiktok', () => game.disconnectTikTok());
   socket.on('start_demo', () => game.startDemoMode());
 

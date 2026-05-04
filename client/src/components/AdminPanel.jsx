@@ -3,6 +3,7 @@ import { useState } from 'react';
 export default function AdminPanel({ socket, gameState, onClose, socketConnected, tiktokError, onClearError }) {
   const [tiktokUser, setTiktokUser] = useState('');
   const [sessionId, setSessionId] = useState('');
+  const [ttTargetIdc, setTtTargetIdc] = useState('');
   const [showSessionHelp, setShowSessionHelp] = useState(false);
   const [manualPlayer, setManualPlayer] = useState('');
   const [elimTarget, setElimTarget] = useState('');
@@ -24,7 +25,7 @@ export default function AdminPanel({ socket, gameState, onClose, socketConnected
     const clean = tiktokUser.replace(/^@/, '').trim();
     if (!clean) return;
     if (onClearError) onClearError();
-    emit('connect_tiktok', { username: clean, sessionId: sessionId.trim() }, `⏳ Conectando a @${clean}...`);
+    emit('connect_tiktok', { username: clean, sessionId: sessionId.trim(), ttTargetIdc: ttTargetIdc.trim() }, `⏳ Conectando a @${clean}...`);
   };
 
   const disconnectTikTok = () => {
@@ -128,7 +129,7 @@ export default function AdminPanel({ socket, gameState, onClose, socketConnected
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input
             className="admin-input"
-            placeholder="sessionid (cookie TikTok)"
+            placeholder="sessionid (cookie)"
             value={sessionId}
             onChange={e => setSessionId(e.target.value)}
             style={{ flex: 1, fontFamily: 'monospace', fontSize: 10 }}
@@ -143,6 +144,15 @@ export default function AdminPanel({ socket, gameState, onClose, socketConnected
           </button>
         </div>
 
+        <input
+          className="admin-input"
+          placeholder="tt-target-idc (cookie)"
+          value={ttTargetIdc}
+          onChange={e => setTtTargetIdc(e.target.value)}
+          style={{ fontFamily: 'monospace', fontSize: 10 }}
+          disabled={gs.tiktokConnecting}
+        />
+
         {showSessionHelp && (
           <div style={{
             background: 'rgba(0,100,200,0.15)',
@@ -153,14 +163,15 @@ export default function AdminPanel({ socket, gameState, onClose, socketConnected
             color: 'rgba(255,255,255,0.65)',
             lineHeight: 1.6
           }}>
-            <div style={{ fontWeight: 700, color: '#448aff', marginBottom: 4 }}>📋 Cómo obtener el sessionid:</div>
-            <div>1. Abre <b>tiktok.com</b> en Chrome y entra a tu cuenta</div>
+            <div style={{ fontWeight: 700, color: '#448aff', marginBottom: 4 }}>📋 Cómo obtener las cookies:</div>
+            <div>1. Abre <b>tiktok.com</b> en Chrome, inicia sesión</div>
             <div>2. Presiona <b>F12</b> → pestaña <b>Application</b></div>
             <div>3. Sidebar: <b>Storage → Cookies → tiktok.com</b></div>
-            <div>4. Busca la cookie llamada <b>sessionid</b></div>
-            <div>5. Copia el valor y pégalo aquí</div>
+            <div>4. Busca <b>sessionid</b> → copia el valor</div>
+            <div>5. Busca <b>tt-target-idc</b> → copia el valor</div>
+            <div>6. Pégalos en los campos de arriba</div>
             <div style={{ marginTop: 6, color: 'rgba(255,200,0,0.7)' }}>
-              ⚠️ El sessionid expira. Si falla, sácalo de nuevo.
+              ⚠️ Ambas cookies son necesarias. Expiran al cerrar sesión.
             </div>
           </div>
         )}

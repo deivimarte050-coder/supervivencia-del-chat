@@ -276,12 +276,12 @@ class GameManager {
   broadcast() { this.io.emit('game_state', this.state); }
   broadcastEvent(event, data) { this.io.emit(event, data); }
 
-  connectTikTok(rawUsername, sessionId) {
+  connectTikTok(rawUsername, sessionId, ttTargetIdc) {
     const username = rawUsername.replace(/^@/, '').trim();
     if (!username) return;
 
     try {
-      const { WebcastPushConnection } = require('tiktok-live-connector');
+      const { TikTokLiveConnection } = require('tiktok-live-connector');
       if (this.tiktokConnection) {
         try { this.tiktokConnection.disconnect(); } catch (e) {}
         this.tiktokConnection = null;
@@ -292,17 +292,16 @@ class GameManager {
       this.state.tiktokError = null;
       this.broadcast();
 
-      const options = {
-        processInitialData: false,
-        enableExtendedGiftInfo: true,
-        enableWebsocketUpgrade: false,
-        requestPollingIntervalMs: 2000
-      };
-      if (sessionId && sessionId.trim()) {
+      const options = {};
+      if (sessionId && sessionId.trim() && ttTargetIdc && ttTargetIdc.trim()) {
         options.sessionId = sessionId.trim();
+        options['tt-target-idc'] = ttTargetIdc.trim();
+        console.log(`[TIKTOK] Conectando con sessionId a @${username}`);
+      } else {
+        console.log(`[TIKTOK] Conectando sin sesion a @${username} (modo publico)`);
       }
 
-      this.tiktokConnection = new WebcastPushConnection(username, options);
+      this.tiktokConnection = new TikTokLiveConnection(username, options);
 
       this.tiktokConnection.connect()
         .then((state) => {
@@ -328,34 +327,61 @@ class GameManager {
           this.broadcastEvent('tiktok_error', { message: msg });
         });
 
-      this.tiktokConnection.on('comment', (data) => {
-        const user = data.uniqueId || data.userId || '';
-        const msg = (data.comment || '').trim().toUpperCase();
-        console.log(`[COMMENT] @${user}: ${data.comment}`);
+      this.tiktokConnection.on('chat', (data) => {
+        console.log('[CHAT RAW]', JSON.stringify(data).substring(0, 400));
+        const user = data.user?.uniqueId || data.uniqueId || data.userId || data.nickname || '';
+        const commentText = data.comment || data.content || data.text || '';
+        const msg = commentText.trim().toUpperCase();
+        console.log(`[CHAT] @${user}: ${commentText}`);
         if (msg.includes('ENTRO')) {
-          console.log(`[JOIN] Detectado ENTRO de @${user}`);
+          console.log(`[JOIN] *** ENTRO detectado de @${user} ***`);
           this.addPlayer(user);
         }
-        this.addChat({ username: user, message: data.comment, type: 'comment' });
+        if (user) this.addChat({ username: user, message: commentText || '...', type: 'comment' });
         this.broadcast();
       });
 
       this.tiktokConnection.on('gift', (data) => {
+        console.log('[GIFT RAW]', JSON.stringify(data).substring(0, 400));
         if (data.giftType === 1 && !data.repeatEnd) return;
-        const user = data.uniqueId || data.userId || '';
+        const user = data.user?.uniqueId || data.uniqueId || data.userId || data.nickname || '';
         const diamonds = (data.diamondCount || 0) * (data.repeatCount || 1);
-        console.log(`[GIFT] @${user}: ${data.giftName} (${diamonds}💎)`);
-        this.addGift(user, data.giftName || 'Regalo', diamonds);
+        const giftName = data.gift?.name || data.giftName || data.describe || 'Regalo';
+        console.log(`[GIFT] @${user}: ${giftName} (${diamonds}💎)`);
+        if (user) this.addGift(user, giftName, diamonds);
       });
 
       this.tiktokConnection.on('like', (data) => {
-        this.addChat({ username: data.uniqueId, message: `❤️ x${data.likeCount}`, type: 'like' });
+        const user = data.user?.uniqueId || data.uniqueId || data.userId || data.nickname || '';
+        if (user) this.addChat({ username: user, message: `❤️ x${data.likeCount || 1}`, type: 'like' });
         this.broadcast();
       });
 
+      this.tiktokConnection.on('member', (data) => {
+        const user = data.user?.uniqueId || data.uniqueId || data.userId || data.nickname || '';
+        if (user) {
+          console.log(`[MEMBER] @${user} se unió al live`);
+          this.addChat({ username: user, message: '👋 se unió al live', type: 'join' });
+        }
+        this.broadcast();
+      });
+
+      this.tiktokConnection.on('streamEnd', () => {
+        console.log('[TIKTOK] Stream terminado');
+        this.state.connected = false;
+        this.state.tiktokError = 'El live ha terminado';
+        this.broadcast();
+        this.broadcastEvent('tiktok_error', { message: 'El live ha terminado' });
+      });
+
       this.tiktokConnection.on('disconnected', () => {
+        console.log('[TIKTOK] Desconectado');
         this.state.connected = false;
         this.broadcast();
+      });
+
+      this.tiktokConnection.on('error', (err) => {
+        console.error('[TIKTOK ERROR]', err?.message || err);
       });
 
     } catch (err) {
