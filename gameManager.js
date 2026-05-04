@@ -5,7 +5,6 @@ class GameManager {
     this.roundTimer = null;
     this.chaosTimer = null;
     this.tiktokConnection = null;
-    this.commentCooldown = new Map();
     this.startTimers();
   }
 
@@ -58,13 +57,10 @@ class GameManager {
   }
 
   addPlayer(username) {
-    if (!username || username.length > 30) return;
+    if (!username || typeof username !== 'string' || username.length > 50) return;
+    if (this.state.gamePhase === 'ended') return;
     if (this.state.players.find(p => p.username === username)) return;
     if (this.state.players.length >= this.state.maxPlayers) return;
-
-    const cooldown = this.commentCooldown.get(username);
-    if (cooldown && Date.now() - cooldown < 3000) return;
-    this.commentCooldown.set(username, Date.now());
 
     const wasEliminated = this.state.eliminated.find(p => p.username === username);
 
@@ -333,18 +329,23 @@ class GameManager {
         });
 
       this.tiktokConnection.on('comment', (data) => {
+        const user = data.uniqueId || data.userId || '';
         const msg = (data.comment || '').trim().toUpperCase();
-        if (msg === 'ENTRO' || msg.startsWith('ENTRO ') || msg.endsWith(' ENTRO')) {
-          this.addPlayer(data.uniqueId);
+        console.log(`[COMMENT] @${user}: ${data.comment}`);
+        if (msg.includes('ENTRO')) {
+          console.log(`[JOIN] Detectado ENTRO de @${user}`);
+          this.addPlayer(user);
         }
-        this.addChat({ username: data.uniqueId, message: data.comment, type: 'comment' });
+        this.addChat({ username: user, message: data.comment, type: 'comment' });
         this.broadcast();
       });
 
       this.tiktokConnection.on('gift', (data) => {
         if (data.giftType === 1 && !data.repeatEnd) return;
+        const user = data.uniqueId || data.userId || '';
         const diamonds = (data.diamondCount || 0) * (data.repeatCount || 1);
-        this.addGift(data.uniqueId, data.giftName || 'Regalo', diamonds);
+        console.log(`[GIFT] @${user}: ${data.giftName} (${diamonds}💎)`);
+        this.addGift(user, data.giftName || 'Regalo', diamonds);
       });
 
       this.tiktokConnection.on('like', (data) => {
